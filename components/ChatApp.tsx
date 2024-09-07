@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import io from 'socket.io-client';
 
 import {
@@ -11,8 +11,11 @@ import {
   IconButton,
   Paper,
   Box,
+  Popover,
+  Button,
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
+import EmojiEmotionsIcon from '@mui/icons-material/EmojiEmotions';
 
 interface Message {
   id: number;
@@ -24,12 +27,17 @@ interface Message {
 const initialMessages: Message[] = [];
 let socket = io();
 
+const emojis = ['😀', '😂', '😍', '🤔', '👍', '👎', '🎉', '❤️', '😎', '🙌', '🦆', '🦕'];
+
 export default function ChatApp() {
   const [messages, setMessages] = useState(initialMessages);
   const [newMessage, setNewMessage] = useState('');
-
   const [isConnected, setIsConnected] = useState(false);
   const [transport, setTransport] = useState("N/A");
+  const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (socket.connected) {
@@ -61,10 +69,10 @@ export default function ChatApp() {
 
   useEffect(() => {
     socket.on('message', (message: string) => {
-      setMessages([
-        ...messages,
+      setMessages(prevMessages => [
+        ...prevMessages,
         {
-          id: messages.length + 1,
+          id: prevMessages.length + 1,
           sender: 'Stranger',
           content: message,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -75,16 +83,26 @@ export default function ChatApp() {
     return () => {
       socket.off('message');
     };
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
   }, [messages]);
+
+  const scrollToBottom = () => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  };
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (newMessage.trim()) {
       socket.emit('message', newMessage);
-      setMessages([
-        ...messages,
+      setMessages(prevMessages => [
+        ...prevMessages,
         {
-          id: messages.length + 1,
+          id: prevMessages.length + 1,
           sender: 'You',
           content: newMessage,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -93,6 +111,22 @@ export default function ChatApp() {
       setNewMessage('');
     }
   };
+
+  const handleEmojiClick = (emoji: string) => {
+    setNewMessage(prevMessage => prevMessage + emoji);
+    setAnchorEl(null);
+  };
+
+  const handleEmojiOpen = (event: React.MouseEvent<HTMLButtonElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleEmojiClose = () => {
+    setAnchorEl(null);
+  };
+
+  const open = Boolean(anchorEl);
+  const id = open ? 'emoji-popover' : undefined;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
@@ -103,7 +137,7 @@ export default function ChatApp() {
           </Typography>
         </Toolbar>
       </AppBar>
-      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2, backgroundColor: 'grey.100' }}>
+      <Box ref={chatContainerRef} sx={{ flexGrow: 1, overflow: 'auto', p: 2, backgroundColor: 'grey.100' }}>
         {messages.map((message) => (
           <Box
             key={message.id}
@@ -133,23 +167,51 @@ export default function ChatApp() {
             </Paper>
           </Box>
         ))}
+        <div ref={messagesEndRef} />
       </Box>
       <Paper elevation={3} sx={{ p: 2, backgroundColor: 'background.default' }}>
         <form onSubmit={handleSendMessage}>
-          <TextField
-            fullWidth
-            variant="outlined"
-            placeholder="Type a message"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            InputProps={{
-              endAdornment: (
-                <IconButton type="submit" color="primary">
-                  <SendIcon />
-                </IconButton>
-              ),
-            }}
-          />
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <IconButton onClick={handleEmojiOpen} color="primary">
+              <EmojiEmotionsIcon />
+            </IconButton>
+            <Popover
+              id={id}
+              open={open}
+              anchorEl={anchorEl}
+              onClose={handleEmojiClose}
+              anchorOrigin={{
+                vertical: 'top',
+                horizontal: 'left',
+              }}
+              transformOrigin={{
+                vertical: 'bottom',
+                horizontal: 'left',
+              }}
+            >
+              <Box sx={{ p: 2, display: 'flex', flexWrap: 'wrap', maxWidth: '200px' }}>
+                {emojis.map((emoji) => (
+                  <Button key={emoji} onClick={() => handleEmojiClick(emoji)}>
+                    {emoji}
+                  </Button>
+                ))}
+              </Box>
+            </Popover>
+            <TextField
+              fullWidth
+              variant="outlined"
+              placeholder="Type a message"
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              InputProps={{
+                endAdornment: (
+                  <IconButton type="submit" color="primary">
+                    <SendIcon />
+                  </IconButton>
+                ),
+              }}
+            />
+          </Box>
         </form>
       </Paper>
     </Box>

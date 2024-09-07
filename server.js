@@ -22,7 +22,6 @@ app.prepare().then(() => {
     });
 
     socket.on("message", (msg) => {
-      console.log("message: " + msg);
       socket.broadcast.emit("message", msg);
     });
   });
